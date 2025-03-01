@@ -5,7 +5,7 @@ from .config import raw_data_path
 from .load_data import load_data
 #from .process_data import process_data
 
-def test():
+def hello():
     print("Hello")
 
 def main():
