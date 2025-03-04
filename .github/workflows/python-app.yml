@@ -46,11 +46,8 @@ jobs:
       - name: Configure Databricks CLI
         run: |
           mkdir -p ~/.databricks
-          # Write host on first line, token on second
           echo "${{ secrets.DATABRICKS_HOST }}" > /tmp/host_token.txt
           echo "${{ secrets.DATABRICKS_TOKEN }}" >> /tmp/host_token.txt
-
-          # Pipe them into databricks configure --token
           cat /tmp/host_token.txt | databricks configure --token
 
       # 8) Upload the new wheel to DBFS
@@ -70,21 +67,21 @@ jobs:
 
           # Create a JSON file that resets the job to reference the new wheel path
           cat <<EOF > job_settings.json
+{
+  "job_id": "946439153829696",
+  "new_settings": {
+    "tasks": [
+      {
+        "task_key": "test_job",
+        "libraries": [
           {
-            "job_id": "946439153829696",
-            "new_settings": {
-              "tasks": [
-                {
-                  "task_key": "test_job",
-                  "libraries": [
-                    {
-                      "whl": "$WHEEL_DBFS"
-                    }
-                  ]
-                }
-              ]
-            }
+            "whl": "$WHEEL_DBFS"
           }
+        ]
+      }
+    ]
+  }
+}
 EOF
 
           # Update the job to use the new wheel
