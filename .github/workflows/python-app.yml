@@ -39,38 +39,36 @@ jobs:
 
       # 6) Install Databricks CLI for deployment
       - name: Install Databricks CLI
-        run: pip install databricks-cli
+        run: |
+          pip install databricks-cli
 
       # 7) Configure Databricks CLI using GitHub Secrets
       - name: Configure Databricks CLI
         run: |
-    mkdir -p ~/.databricks
-    cat <<EOF | databricks configure --token
-${{ secrets.DATABRICKS_HOST }}
-${{ secrets.DATABRICKS_TOKEN }}
-EOF
+          mkdir -p ~/.databricks
+          # Write host on first line, token on second
+          echo "${{ secrets.DATABRICKS_HOST }}" > /tmp/host_token.txt
+          echo "${{ secrets.DATABRICKS_TOKEN }}" >> /tmp/host_token.txt
+
+          # Pipe them into databricks configure --token
+          cat /tmp/host_token.txt | databricks configure --token
 
       # 8) Upload the new wheel to DBFS
       - name: Upload wheel to DBFS
         run: |
-          WHEEL_PATH=$(ls dist/*.whl | head -n 1)  # e.g. dist/python_wheel_project-0.0.2-py3-none-any.whl
+          # For example, if you only build one wheel, this picks the first .whl file
+          WHEEL_PATH=$(ls dist/*.whl | head -n 1)
           echo "Uploading wheel: $WHEEL_PATH"
           databricks fs cp "$WHEEL_PATH" "dbfs:/FileStore/wheels/" --overwrite
 
       # 9) Update and run the Databricks job
       - name: Update & run Databricks job
         run: |
-          # Example: if your job expects a "Wheel" library from DBFS
-          # 1) Update the job libraries
-          # 2) Run the job with "run-now"
-
-          # 1) Grab the wheel filename
+          # Grab the wheel filename for the new library path
           WHEEL_FILE=$(ls dist/*.whl | xargs -n1 basename)
           WHEEL_DBFS="dbfs:/FileStore/wheels/$WHEEL_FILE"
 
-          # 2) (Optional) Update the job to reference the new wheel path
-          #    We'll assume your job has a single task with "libraries" that needs updating
-          #    This uses the Jobs API (2.1) to overwrite the job's library path
+          # Create a JSON file that resets the job to reference the new wheel path
           cat <<EOF > job_settings.json
           {
             "job_id": "946439153829696",
@@ -88,8 +86,9 @@ EOF
             }
           }
 EOF
-          # Update the job
+
+          # Update the job to use the new wheel
           databricks jobs reset --json-file job_settings.json
 
-          # 3) Run the job
+          # Run the job now
           databricks jobs run-now --job-id 946439153829696
