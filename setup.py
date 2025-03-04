@@ -2,7 +2,10 @@ from setuptools import setup, find_packages
 
 setup(
     name="python_wheel_project",
-    version="0.0.2",
+    version="0.0.6",
+    author="Maksim Kazartsev",
+    author_email="kazarmax@gmail.com",
+    description="Package to automate ETL for Adzuna API data",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     install_requires=[

@@ -1,5 +1,4 @@
 from pyspark.sql import DataFrame
-from pyspark.sql.functions import col
 
 
 def load_data(spark, file_path) -> DataFrame:

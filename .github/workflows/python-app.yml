@@ -1,0 +1,95 @@
+name: CI-CD for Databricks Wheel
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) Check out the code
+      - name: Check out repo
+        uses: actions/checkout@v3
+
+      # 2) Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+
+      # 3) Install dev dependencies
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      # 4) Run tests
+      - name: Run Pytest
+        run: pytest --maxfail=1 --disable-warnings
+
+      # 5) Build the wheel (only if tests passed)
+      - name: Build wheel
+        run: |
+          python setup.py sdist bdist_wheel
+
+      # 6) Install Databricks CLI for deployment
+      - name: Install Databricks CLI
+        run: pip install databricks-cli
+
+      # 7) Configure Databricks CLI using GitHub Secrets
+      - name: Configure Databricks CLI
+        run: |
+          mkdir -p ~/.databricks
+          databricks configure --token <<EOF
+${{ secrets.DATABRICKS_HOST }}
+${{ secrets.DATABRICKS_TOKEN }}
+EOF
+
+      # 8) Upload the new wheel to DBFS
+      - name: Upload wheel to DBFS
+        run: |
+          WHEEL_PATH=$(ls dist/*.whl | head -n 1)  # e.g. dist/python_wheel_project-0.0.2-py3-none-any.whl
+          echo "Uploading wheel: $WHEEL_PATH"
+          databricks fs cp "$WHEEL_PATH" "dbfs:/FileStore/wheels/" --overwrite
+
+      # 9) Update and run the Databricks job
+      - name: Update & run Databricks job
+        run: |
+          # Example: if your job expects a "Wheel" library from DBFS
+          # 1) Update the job libraries
+          # 2) Run the job with "run-now"
+
+          # 1) Grab the wheel filename
+          WHEEL_FILE=$(ls dist/*.whl | xargs -n1 basename)
+          WHEEL_DBFS="dbfs:/FileStore/wheels/$WHEEL_FILE"
+
+          # 2) (Optional) Update the job to reference the new wheel path
+          #    We'll assume your job has a single task with "libraries" that needs updating
+          #    This uses the Jobs API (2.1) to overwrite the job's library path
+          cat <<EOF > job_settings.json
+          {
+            "job_id": "946439153829696",
+            "new_settings": {
+              "tasks": [
+                {
+                  "task_key": "test_job",
+                  "libraries": [
+                    {
+                      "whl": "$WHEEL_DBFS"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+EOF
+          # Update the job
+          databricks jobs reset --json-file job_settings.json
+
+          # 3) Run the job
+          databricks jobs run-now --job-id 946439153829696
