@@ -9,40 +9,33 @@ on:
 jobs:
   build-test-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      # 1) Check out the code
+
       - name: Check out repo
         uses: actions/checkout@v3
 
-      # 2) Set up Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.8"
 
-      # 3) Install dev dependencies
       - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
 
-      # 4) Run tests
       - name: Run Pytest
         run: pytest --maxfail=1 --disable-warnings
 
-      # 5) Build the wheel (only if tests passed)
       - name: Build wheel
         run: |
           python setup.py sdist bdist_wheel
 
-      # 6) Install Databricks CLI for deployment
       - name: Install Databricks CLI
         run: |
           pip install databricks-cli
 
-      # 7) Configure Databricks CLI using GitHub Secrets
       - name: Configure Databricks CLI
         run: |
           mkdir -p ~/.databricks
@@ -50,22 +43,19 @@ jobs:
           echo "${{ secrets.DATABRICKS_TOKEN }}" >> /tmp/host_token.txt
           cat /tmp/host_token.txt | databricks configure --token
 
-      # 8) Upload the new wheel to DBFS
       - name: Upload wheel to DBFS
         run: |
-          # For example, if you only build one wheel, this picks the first .whl file
           WHEEL_PATH=$(ls dist/*.whl | head -n 1)
           echo "Uploading wheel: $WHEEL_PATH"
           databricks fs cp "$WHEEL_PATH" "dbfs:/FileStore/wheels/" --overwrite
 
-      # 9) Update and run the Databricks job
       - name: Update & run Databricks job
         run: |
           # Grab the wheel filename for the new library path
           WHEEL_FILE=$(ls dist/*.whl | xargs -n1 basename)
           WHEEL_DBFS="dbfs:/FileStore/wheels/$WHEEL_FILE"
 
-          # Create a JSON file that resets the job to reference the new wheel path
+          # Create a JSON file with the new wheel path
           cat <<EOF > job_settings.json
 {
   "job_id": "946439153829696",
@@ -84,8 +74,6 @@ jobs:
 }
 EOF
 
-          # Update the job to use the new wheel
+          # Update and run the Databricks job
           databricks jobs reset --json-file job_settings.json
-
-          # Run the job now
           databricks jobs run-now --job-id 946439153829696
