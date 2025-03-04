@@ -44,8 +44,8 @@ jobs:
       # 7) Configure Databricks CLI using GitHub Secrets
       - name: Configure Databricks CLI
         run: |
-          mkdir -p ~/.databricks
-          databricks configure --token <<EOF
+    mkdir -p ~/.databricks
+    cat <<EOF | databricks configure --token
 ${{ secrets.DATABRICKS_HOST }}
 ${{ secrets.DATABRICKS_TOKEN }}
 EOF
