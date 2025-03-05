@@ -58,23 +58,27 @@ jobs:
 
           # Create a JSON file with the new wheel path
           cat <<EOF > job_settings.json
+{
+  "job_id": "946439153829696",
+  "new_settings": {
+    "tasks": [
+      {
+        "task_key": "test_job",
+        "libraries": [
           {
-            "job_id": "946439153829696",
-            "new_settings": {
-              "tasks": [
-                {
-                  "task_key": "test_job",
-                  "libraries": [
-                    {
-                      "whl": "$WHEEL_DBFS"
-                    }
-                  ]
-                }
-              ]
-            }
+            "whl": "$WHEEL_DBFS"
           }
-          EOF
+        ]
+      }
+    ]
+  }
+}
+EOF
 
+          # Debug JSON before executing command
+          cat job_settings.json
+          jq . job_settings.json  # Validate JSON formatting
+          
           # Update and run the Databricks job
           databricks jobs reset --json-file job_settings.json
           databricks jobs run-now --job-id 946439153829696
