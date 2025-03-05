@@ -57,7 +57,7 @@ jobs:
           WHEEL_DBFS="dbfs:/FileStore/wheels/$WHEEL_FILE"
 
           # Create a JSON file with the new wheel path
-          cat <<EOF > job_settings.json
+          cat > job_settings.json <<EOF
 {
   "job_id": "946439153829696",
   "new_settings": {
@@ -78,7 +78,7 @@ EOF
           # Debug JSON before executing command
           cat job_settings.json
           jq . job_settings.json  # Validate JSON formatting
-          
+
           # Update and run the Databricks job
           databricks jobs reset --json-file job_settings.json
           databricks jobs run-now --job-id 946439153829696
