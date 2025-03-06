@@ -57,21 +57,21 @@ jobs:
           WHEEL_DBFS="dbfs:/FileStore/wheels/$WHEEL_FILE"
 
           # Create a JSON file with the new wheel path
-          cat <<EOF > job_settings.json
+          cat <<'EOF' > job_settings.json
 {
-  "job_id": "946439153829696",
-  "new_settings": {
-    "tasks": [
+"job_id": "946439153829696",
+"new_settings": {
+"tasks": [
+  {
+    "task_key": "test_job",
+    "libraries": [
       {
-        "task_key": "test_job",
-        "libraries": [
-          {
-            "whl": "$WHEEL_DBFS"
-          }
-        ]
+        "whl": "$WHEEL_DBFS"
       }
     ]
   }
+]
+}
 }
 EOF
 
