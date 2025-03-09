@@ -1,5 +1,11 @@
-name: CI-CD for Databricks Wheel
+name: CI-CD for Databricks Bundle Deployment
 
+# Ensure that only a single job or workflow using the same concurrency group
+# runs at a time.
+concurrency: 1
+
+# Trigger this workflow whenever a pull request is pushed to the repo's
+# main branch.
 on:
   push:
     branches: [ "main" ]
@@ -7,78 +13,46 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build-test-deploy:
+  deploy:
+    name: 'Deploy bundle'
     runs-on: ubuntu-latest
+
     steps:
+      # Check out this repo, so that this workflow can access it.
+      - uses: actions/checkout@v3
 
-      - name: Check out repo
-        uses: actions/checkout@v3
+      # Download the Databricks CLI.
+      # See https://github.com/databricks/setup-cli
+      - uses: databricks/setup-cli@main
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.8"
+      # Deploy the bundle to the "prod" target as defined
+      # in the bundle's settings file.
+      - run: databricks bundle deploy
+        working-directory: .
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.SP_TOKEN }}
+          DATABRICKS_BUNDLE_ENV: prod
 
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
-          pip install setuptools wheel
+  # Validate, deploy, and then run the bundle.
+  pipeline_update:
+    name: 'Run pipeline update'
+    runs-on: ubuntu-latest
 
-      - name: Run Pytest
-        run: pytest --maxfail=1 --disable-warnings
+    # Run the "deploy" job first.
+    needs:
+      - deploy
 
-      - name: Build wheel
-        run: |
-          python setup.py bdist_wheel
+    steps:
+      # Check out this repo, so that this workflow can access it.
+      - uses: actions/checkout@v3
 
-      - name: Install Databricks CLI
-        run: |
-          pip install databricks-cli
+      # Use the downloaded Databricks CLI.
+      - uses: databricks/setup-cli@main
 
-      - name: Configure Databricks CLI
-        run: |
-          mkdir -p ~/.databricks
-          echo "${{ secrets.DATABRICKS_HOST }}" > /tmp/host_token.txt
-          echo "${{ secrets.DATABRICKS_TOKEN }}" >> /tmp/host_token.txt
-          cat /tmp/host_token.txt | databricks configure --token
-
-      - name: Upload wheel to DBFS
-        run: |
-          WHEEL_PATH=$(ls dist/*.whl | head -n 1)
-          echo "Uploading wheel: $WHEEL_PATH"
-          databricks fs cp "$WHEEL_PATH" "dbfs:/FileStore/wheels/" --overwrite
-
-      - name: Update & run Databricks job
-        run: |
-          # Grab the wheel filename for the new library path
-          WHEEL_FILE=$(ls dist/*.whl | xargs -n1 basename)
-          WHEEL_DBFS="dbfs:/FileStore/wheels/$WHEEL_FILE"
-
-          # Create a JSON file with the new wheel path
-          cat <<'EOF' > job_settings.json
-{
-"job_id": "946439153829696",
-"new_settings": {
-"tasks": [
-  {
-    "task_key": "test_job",
-    "libraries": [
-      {
-        "whl": "$WHEEL_DBFS"
-      }
-    ]
-  }
-]
-}
-}
-EOF
-
-          # Debug JSON before executing command
-          cat job_settings.json
-          jq . job_settings.json  # Validate JSON formatting
-
-          # Update and run the Databricks job
-          databricks jobs reset --json-file job_settings.json
-          databricks jobs run-now --job-id 946439153829696
+      # Run the Databricks workflow named "my-job" as defined in the
+      # bundle that was just deployed.
+      - run: databricks bundle run adzuna_job --refresh-all
+        working-directory: .
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.SP_TOKEN }}
+          DATABRICKS_BUNDLE_ENV: prod

@@ -1,0 +1,14 @@
+resources:
+  jobs:
+    adzuna_job:
+      name: adzuna_job
+      tasks:
+        - task_key: load_adzuna_data
+          python_wheel_task:
+            package_name: python_wheel_project
+            entry_point: run_pipeline
+          existing_cluster_id: 0309-043729-pnhv1eqg
+          libraries:
+            - whl: ../../dist/*.whl
+      queue:
+        enabled: true
